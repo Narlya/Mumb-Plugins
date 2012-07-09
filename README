@@ -1,0 +1,38 @@
+Mumb Plugins
+============
+
+Mumb Plugins is an attempt to create to as many “Positional Audio” plugins for Mumble as can be and keep them up to date separate from the main Mumble directory and be accessible to anyone for editing.
+
+Note: Currently most plugin files present in the directory are copies of existing files in the main Mumble git directory present at https://github.com/mumble-voip
+Some plugins in this directory are currently just dummy code copied from other plugins in mumble directory. If you wish to view any plugin history pre-to this directory creation you’ll have to find the plugin (if it exists) in the main Mumble directory.
+
+All copyrights are left intact and any further contributors will be mentioned as well.
+ 
+M U M B L E
+===========
+
+A voicechat utility for gamers
+
+      http://mumble.info/
+
+      #mumble on freenode
+
+Mumble is a voicechat program for gamers written on top of Qt and Speex.
+
+There are two modules in Mumble; the client (mumble) and the server
+(murmur). The client works on Win32/64, Linux and Mac OS X, while the
+server should work on anything Qt can be installed on.
+
+Note that when we say Win32, we mean Windows XP or newer.
+
+Running Mumble
+==============
+
+On Windows, after installation, you should have a new Mumble folder in your
+Start Menu, from which you can start Mumble.
+
+On Mac OS X, to install Mumble, drag the application from the downloaded
+disk image into your /Applications folder.
+
+Once Mumble is launched, you need a server to connect to. Either create your
+own or join a friend's.
