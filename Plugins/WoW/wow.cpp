@@ -1,5 +1,6 @@
 /* Copyright (C) 2009-2010, deKarl <dekarl@users.sourceforge.net>
    Copyright (C) 2005-2012, Thorvald Natvig <thorvald@natvig.com>
+   Copyright (C) 2012-2012, Fwaggle <fwaggle@users.sourceforge.net>
 
    All rights reserved.
 
