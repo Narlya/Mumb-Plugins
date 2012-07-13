@@ -1,11 +1,11 @@
-/* Copyright (C) 2009-2012, Snares <snares@users.sourceforge.net>
-   Copyright (C) 2005-2012, Thorvald Natvig <thorvald@natvig.com>
+/* <your copyright here>
+   Copyright (C) 2005-2010, Thorvald Natvig <thorvald@natvig.com> 
 
    All rights reserved.
-
+ 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
-   are met:
+   are met: 
 
    - Redistributions of source code must retain the above copyright notice,
      this list of conditions and the following disclaimer.
@@ -27,87 +27,56 @@
    LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
    NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+*/ 
 
-//
+#include "../mumble_plugin_win32.h"  
 
-////
-#include "../mumble_plugin_win32.h"
+static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, float *camera_pos, float *camera_front, float *camera_top, std::string &context, std::wstring &identity) {
+	for (int i=0;i<3;i++)
+		avatar_pos[i]=avatar_front[i]=avatar_top[i]=0.0f;
 
-using namespace std;
-
-BYTE *pos0ptr;
-BYTE *pos1ptr;
-BYTE *pos2ptr;
-BYTE *faceptr;
-BYTE *topptr;
-//BYTE *stateptr;
-
-static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, float *camera_pos, float *camera_front, float *camera_top, std::string &, std::wstring &) {
-	char state;
-	//char ccontext[128];
+        char state;
 	bool ok;
-
-	float face_corrector[3];
+        // Create containers to stuff our raw data into, so we can convert it to Mumble's coordinate system
+	float pos_corrector[3];
+	float front_corrector[3];
 	float top_corrector[3];
 
-	for (int i=0;i<3;i++)
-		avatar_pos[i] = avatar_front[i] = avatar_top[i] = camera_pos[i] = camera_front[i] = camera_top[i] = 0.0f;
-
-	ok = peekProc((BYTE *) 0x01DEAFD9, &state, 1);
-	if (! ok)
-		return false;
-
-	if (state == 1)
-		return true;
-
 	/*
-	   Z-Value is increasing when heading north
-				  decreasing when heading south
-	   X-Value is increasing when heading east
-				  decreasing when heading west
-	   Y-Value is increasing when going up
-				  decreasing when going down
-	*/
-
-	//Convert to left-handed coordinate system
-
-	ok = peekProc(pos2ptr, avatar_pos, 4) &&	//X
-	     peekProc(pos1ptr, avatar_pos+1, 4) &&	//Y
-	     peekProc(pos0ptr, avatar_pos+2, 4) &&  //Z
-	     peekProc(faceptr, &face_corrector, 12) &&
-	     peekProc(topptr, &top_corrector, 12);
-
-	//peekProc((BYTE *) 0x0122E0B8, ccontext, 128);
-
+		value is 0 when one is not in a game, 4 when one is
+	
+	ok = peekProc((BYTE *) 0x05BF7188, &state, 1); // Magical state value
 	if (! ok)
 		return false;
 
-	if (face_corrector[1] <= -0.98) {
-		top_corrector[1] = -top_corrector[1];
-	}
-	if (face_corrector[1] >= 0.98) {
-		top_corrector[1] = -top_corrector[1];
-	}
+	if (state == 0)
+             return true; // This results in all vectors beeing zero which tells Mumble to ignore them.
+*/
+        // Peekproc and assign game addresses to our containers, so we can retrieve positional data
+	ok = peekProc((BYTE *) 0x013C8CC4, &pos_corrector, 12) &&
+	     peekProc((BYTE *) 0x68417D00, &front_corrector, 12) &&
+	     peekProc((BYTE *) 0x68417D04, &top_corrector, 12);
 
-	//Find north by playing on a Warfare game type - center view on the up arrow on the mini map
-	avatar_front[0] = face_corrector[2];
-	avatar_front[1] = face_corrector[1];
-	avatar_front[2] = face_corrector[0];
+	if (! ok)
+		return false;
+	
+        // Convert to left-handed coordinate system
 
-	avatar_top[0] = top_corrector[2];
-	avatar_top[1] = top_corrector[1];
-	avatar_top[2] = top_corrector[0];
+	avatar_pos[0] = pos_corrector[0];
+	avatar_pos[1] = pos_corrector[2];
+	avatar_pos[2] = pos_corrector[1];
+	
+	for (int i=0;i<3;i++)
+		avatar_pos[i]/=32.0f; // Scale to meters
 
-	//avatar_top[0] = top_corrector[2];
-	//avatar_top[1] = top_corrector[1];
-
-	//ccontext[127] = 0;
-	//context = std::string(ccontext);
-
-	//if (context.find(':')==string::npos)
-	//	context.append(":UT3PORT");
-
+	avatar_front[0] = front_corrector[0];
+	avatar_front[1] = front_corrector[2];
+	avatar_front[2] = front_corrector[1];
+	
+	avatar_top[0] = top_corrector[0];
+	avatar_top[1] = top_corrector[2];
+	avatar_top[2] = top_corrector[1];
+	
 	for (int i=0;i<3;i++) {
 		camera_pos[i] = avatar_pos[i];
 		camera_front[i] = avatar_front[i];
@@ -118,27 +87,17 @@ static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, floa
 }
 
 static int trylock(const std::multimap<std::wstring, unsigned long long int> &pids) {
-	pos0ptr = pos1ptr = pos2ptr = faceptr = NULL;
 
-	if (! initialize(pids, L"UT3.exe", L"wrap_oal.dll"))
+	if (! initialize(pids, L"TribesAscend.exe"))
 		return false;
 
-	BYTE *ptraddress = pModule + 0x8A740;
-	BYTE *baseptr = peekProc<BYTE *>(ptraddress);
+	// Check if we can get meaningful data from it
+	float apos[3], afront[3], atop[3];
+	float cpos[3], cfront[3], ctop[3];
+	std::wstring sidentity;
+	std::string scontext;
 
-	pos0ptr = baseptr;
-	pos1ptr = baseptr + 0x4;
-	pos2ptr = baseptr + 0x8;
-	faceptr = baseptr + 0x18;
-	topptr = baseptr + 0x24;
-
-	//stateptr = pModule + 0xC4;
-
-	float apos[3], afront[3], atop[3], cpos[3], cfront[3], ctop[3];
-	std::string context;
-	std::wstring identity;
-
-	if (fetch(apos, afront, atop, cpos, cfront, ctop, context, identity)) {
+	if (fetch(apos, afront, atop, cpos, cfront, ctop, scontext, sidentity)) {
 		return true;
 	} else {
 		generic_unlock();
@@ -147,17 +106,17 @@ static int trylock(const std::multimap<std::wstring, unsigned long long int> &pi
 }
 
 static const std::wstring longdesc() {
-	return std::wstring(L"Supports Unreal Tournament 3 (v2.1). No context or identity support yet.");
+	return std::wstring(L"Tribes Ascend 1.0.1016.7, No identity support yet.");
 }
 
-static std::wstring description(L"Unreal Tournament 3 (v2.1)");
-static std::wstring shortname(L"Unreal Tournament 3");
+static std::wstring description(L"Tribes Ascend 1.0.1016.7");
+static std::wstring shortname(L"Tribes Ascend");
 
 static int trylock1() {
 	return trylock(std::multimap<std::wstring, unsigned long long int>());
 }
 
-static MumblePlugin ut3plug = {
+static MumblePlugin aaplug = {
 	MUMBLE_PLUGIN_MAGIC,
 	description,
 	shortname,
@@ -169,16 +128,16 @@ static MumblePlugin ut3plug = {
 	fetch
 };
 
-static MumblePlugin2 ut3plug2 = {
+static MumblePlugin2 aaplug2 = {
 	MUMBLE_PLUGIN_MAGIC_2,
 	MUMBLE_PLUGIN_VERSION,
 	trylock
 };
 
 extern "C" __declspec(dllexport) MumblePlugin *getMumblePlugin() {
-	return &ut3plug;
+	return &aaplug;
 }
 
 extern "C" __declspec(dllexport) MumblePlugin2 *getMumblePlugin2() {
-	return &ut3plug2;
+	return &aaplug2;
 }
